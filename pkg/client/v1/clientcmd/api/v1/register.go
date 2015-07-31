@@ -17,15 +17,15 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/v1/clientcmd/api"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
 )
 
 // Codec encodes internal objects to the v1 scheme
-var Codec = runtime.CodecFor(v1api.Scheme, "v1")
+var Codec = runtime.CodecFor(api.Scheme, "v1")
 
 func init() {
-	v1api.Scheme.AddKnownTypes("v1",
+	api.Scheme.AddKnownTypes("v1",
 		&Config{},
 	)
 }
