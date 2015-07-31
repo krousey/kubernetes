@@ -25,6 +25,9 @@ import (
 // Codec encodes internal objects to the v1 scheme
 var Codec = runtime.CodecFor(api.Scheme, "v1")
 
+// Scheme is the default instance of runtime.Scheme to which types in the Kubernetes API are already registered.
+var Scheme = api.Scheme
+
 func init() {
 	// Check if v1 is in the list of supported API versions.
 	if !registered.IsRegisteredAPIVersion("v1") {
