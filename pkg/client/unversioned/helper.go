@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/latest"
 	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/client/transport"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/sets"
@@ -94,6 +95,33 @@ type Config struct {
 	Burst int
 }
 
+// transportConfig converts a client config to an appropriate transport config.
+func (c *Config) transportConfig() *transport.Config {
+	return &transport.Config{
+		UserAgent:     c.UserAgent,
+		Transport:     c.Transport,
+		WrapTransport: c.WrapTransport,
+		TLS: transport.TLSConfig{
+			CAFile:   c.CAFile,
+			CAData:   c.CAData,
+			CertFile: c.CertFile,
+			CertData: c.CertData,
+			KeyFile:  c.KeyFile,
+			KeyData:  c.KeyData,
+			Insecure: c.Insecure,
+		},
+		Auth: transport.AuthConfig{
+			Basic: transport.BasicAuthConfig{
+				User:     c.Username,
+				Password: c.Password,
+			},
+			Token: transport.TokenAuthConfig{
+				BearerToken: c.BearerToken,
+			},
+		},
+	}
+}
+
 type KubeletConfig struct {
 	// ToDo: Add support for different kubelet instances exposing different ports
 	Port        uint
@@ -110,6 +138,29 @@ type KubeletConfig struct {
 
 	// Dial is a custom dialer used for the client
 	Dial func(net, addr string) (net.Conn, error)
+}
+
+// transportConfig converts a client config to an appropriate transport config.
+func (c *KubeletConfig) transportConfig() *transport.Config {
+	cfg := &transport.Config{
+		TLS: transport.TLSConfig{
+			CAFile:   c.CAFile,
+			CAData:   c.CAData,
+			CertFile: c.CertFile,
+			CertData: c.CertData,
+			KeyFile:  c.KeyFile,
+			KeyData:  c.KeyData,
+		},
+		Auth: transport.AuthConfig{
+			Token: transport.TokenAuthConfig{
+				BearerToken: c.BearerToken,
+			},
+		},
+	}
+	if c.EnableHttps && !cfg.UsesTLS() {
+		cfg.TLS.Insecure = true
+	}
+	return cfg
 }
 
 // TLSClientConfig contains settings to enable transport layer security
