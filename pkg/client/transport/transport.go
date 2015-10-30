@@ -1,0 +1,109 @@
+/*
+Copyright 2015 The Kubernetes Authors All rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package transport
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
+)
+
+// TLSConfigFor returns a tls.Config that will provide the transport level security defined
+// by the provided Config. Will return nil if no transport level security is requested.
+func TLSConfigFor(c *Config) (*tls.Config, error) {
+	if !c.UsesTLS() {
+		return nil, nil
+	}
+	if c.hasCA() && c.insecure() {
+		return nil, fmt.Errorf("specifying a root certificates file with the insecure flag is not allowed")
+	}
+	if err := loadTLSFiles(c); err != nil {
+		return nil, err
+	}
+
+	tlsConfig := &tls.Config{
+		// Change default from SSLv3 to TLSv1.0 (because of POODLE vulnerability)
+		MinVersion:         tls.VersionTLS10,
+		InsecureSkipVerify: c.insecure(),
+	}
+
+	if c.hasCA() {
+		tlsConfig.RootCAs = rootCertPool(c.TLS.CAData)
+	}
+
+	if c.hasCertAuth() {
+		cert, err := tls.X509KeyPair(c.TLS.CertData, c.TLS.KeyData)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConfig, nil
+}
+
+// loadTLSFiles copies the data from the CertFile, KeyFile, and CAFile fields into the CertData,
+// KeyData, and CAFile fields, or returns an error. If no error is returned, all three fields are
+// either populated or were empty to start.
+func loadTLSFiles(c *Config) error {
+	var err error
+	c.TLS.CAData, err = dataFromSliceOrFile(c.TLS.CAData, c.TLS.CAFile)
+	if err != nil {
+		return err
+	}
+
+	c.TLS.CertData, err = dataFromSliceOrFile(c.TLS.CertData, c.TLS.CertFile)
+	if err != nil {
+		return err
+	}
+
+	c.TLS.KeyData, err = dataFromSliceOrFile(c.TLS.KeyData, c.TLS.KeyFile)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// dataFromSliceOrFile returns data from the slice (if non-empty), or from the file,
+// or an error if an error occurred reading the file
+func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
+	if len(data) > 0 {
+		return data, nil
+	}
+	if len(file) > 0 {
+		fileData, err := ioutil.ReadFile(file)
+		if err != nil {
+			return []byte{}, err
+		}
+		return fileData, nil
+	}
+	return nil, nil
+}
+
+// rootCertPool returns nil if caData is empty.  When passed along, this will mean "use system CAs".
+// When caData is not empty, it will be the ONLY information used in the CertPool.
+func rootCertPool(caData []byte) *x509.CertPool {
+	// What we really want is a copy of x509.systemRootsPool, but that isn't exposed.  It's difficult to build (see the go
+	// code for a look at the platform specific insanity), so we'll use the fact that RootCAs == nil gives us the system values
+	// It doesn't allow trusting either/or, but hopefully that won't be an issue
+	if len(caData) == 0 {
+		return nil
+	}
+
+	// if we have caData, use it
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM(caData)
+	return certPool
+}

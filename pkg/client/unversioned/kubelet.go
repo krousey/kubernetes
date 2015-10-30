@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net/http"
 
+	"k8s.io/kubernetes/pkg/client/transport"
 	"k8s.io/kubernetes/pkg/util"
 )
 
@@ -39,14 +40,7 @@ type HTTPKubeletClient struct {
 }
 
 func MakeTransport(config *KubeletConfig) (http.RoundTripper, error) {
-	cfg := &Config{TLSClientConfig: config.TLSClientConfig}
-	if config.EnableHttps {
-		hasCA := len(config.CAFile) > 0 || len(config.CAData) > 0
-		if !hasCA {
-			cfg.Insecure = true
-		}
-	}
-	tlsConfig, err := TLSConfigFor(cfg)
+	tlsConfig, err := transport.TLSConfigFor(config.transportConfig())
 	if err != nil {
 		return nil, err
 	}

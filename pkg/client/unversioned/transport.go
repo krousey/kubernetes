@@ -18,11 +18,11 @@ package unversioned
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
+	"k8s.io/kubernetes/pkg/client/transport"
 	"k8s.io/kubernetes/pkg/util"
 )
 
@@ -107,38 +107,7 @@ func (rt *bearerAuthRoundTripper) WrappedRoundTripper() http.RoundTripper {
 // TLSConfigFor returns a tls.Config that will provide the transport level security defined
 // by the provided Config. Will return nil if no transport level security is requested.
 func TLSConfigFor(config *Config) (*tls.Config, error) {
-	hasCA := len(config.CAFile) > 0 || len(config.CAData) > 0
-	hasCert := len(config.CertFile) > 0 || len(config.CertData) > 0
-
-	if !hasCA && !hasCert && !config.Insecure {
-		return nil, nil
-	}
-	if hasCA && config.Insecure {
-		return nil, fmt.Errorf("specifying a root certificates file with the insecure flag is not allowed")
-	}
-	if err := LoadTLSFiles(config); err != nil {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		// Change default from SSLv3 to TLSv1.0 (because of POODLE vulnerability)
-		MinVersion:         tls.VersionTLS10,
-		InsecureSkipVerify: config.Insecure,
-	}
-
-	if hasCA {
-		tlsConfig.RootCAs = rootCertPool(config.CAData)
-	}
-
-	if hasCert {
-		cert, err := tls.X509KeyPair(config.CertData, config.KeyData)
-		if err != nil {
-			return nil, err
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	return tlsConfig, nil
+	return transport.TLSConfigFor(config.transportConfig())
 }
 
 // tlsConfigKey returns a unique key for tls.Config objects returned from TLSConfigFor
@@ -188,22 +157,6 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		return fileData, nil
 	}
 	return nil, nil
-}
-
-// rootCertPool returns nil if caData is empty.  When passed along, this will mean "use system CAs".
-// When caData is not empty, it will be the ONLY information used in the CertPool.
-func rootCertPool(caData []byte) *x509.CertPool {
-	// What we really want is a copy of x509.systemRootsPool, but that isn't exposed.  It's difficult to build (see the go
-	// code for a look at the platform specific insanity), so we'll use the fact that RootCAs == nil gives us the system values
-	// It doesn't allow trusting either/or, but hopefully that won't be an issue
-	if len(caData) == 0 {
-		return nil
-	}
-
-	// if we have caData, use it
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(caData)
-	return certPool
 }
 
 // cloneRequest returns a clone of the provided *http.Request.
