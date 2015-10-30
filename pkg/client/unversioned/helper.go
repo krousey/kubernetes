@@ -28,7 +28,6 @@ import (
 	"reflect"
 	gruntime "runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang/glog"
@@ -492,50 +491,6 @@ func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 	return client, nil
 }
 
-var (
-	// tlsTransports stores reusable round trippers with custom TLSClientConfig options
-	tlsTransports = map[string]*http.Transport{}
-
-	// tlsTransportLock protects retrieval and storage of round trippers into the tlsTransports map
-	tlsTransportLock sync.Mutex
-)
-
-// tlsTransportFor returns a http.RoundTripper for the given config, or an error
-// The same RoundTripper will be returned for configs with identical TLS options
-// If the config has no custom TLS options, http.DefaultTransport is returned
-func tlsTransportFor(config *Config) (http.RoundTripper, error) {
-	// Get a unique key for the TLS options in the config
-	key, err := tlsConfigKey(config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure we only create a single transport for the given TLS options
-	tlsTransportLock.Lock()
-	defer tlsTransportLock.Unlock()
-
-	// See if we already have a custom transport for this config
-	if cachedTransport, ok := tlsTransports[key]; ok {
-		return cachedTransport, nil
-	}
-
-	// Get the TLS options for this client config
-	tlsConfig, err := TLSConfigFor(config)
-	if err != nil {
-		return nil, err
-	}
-	// The options didn't require a custom TLS config
-	if tlsConfig == nil {
-		return http.DefaultTransport, nil
-	}
-
-	// Cache a single transport for these options
-	tlsTransports[key] = util.SetTransportDefaults(&http.Transport{
-		TLSClientConfig: tlsConfig,
-	})
-	return tlsTransports[key], nil
-}
-
 // TransportFor returns an http.RoundTripper that will provide the authentication
 // or transport level security defined by the provided Config. Will return the
 // default http.DefaultTransport if no special case behavior is needed.
@@ -549,14 +504,14 @@ func TransportFor(config *Config) (http.RoundTripper, error) {
 	}
 
 	var (
-		transport http.RoundTripper
-		err       error
+		rt  http.RoundTripper
+		err error
 	)
 
 	if config.Transport != nil {
-		transport = config.Transport
+		rt = config.Transport
 	} else {
-		transport, err = tlsTransportFor(config)
+		rt, err = transport.TLSTransportFor(config.transportConfig())
 		if err != nil {
 			return nil, err
 		}
@@ -564,28 +519,28 @@ func TransportFor(config *Config) (http.RoundTripper, error) {
 
 	// Call wrap prior to adding debugging wrappers
 	if config.WrapTransport != nil {
-		transport = config.WrapTransport(transport)
+		rt = config.WrapTransport(rt)
 	}
 
 	switch {
 	case bool(glog.V(9)):
-		transport = NewDebuggingRoundTripper(transport, CurlCommand, URLTiming, ResponseHeaders)
+		rt = NewDebuggingRoundTripper(rt, CurlCommand, URLTiming, ResponseHeaders)
 	case bool(glog.V(8)):
-		transport = NewDebuggingRoundTripper(transport, JustURL, RequestHeaders, ResponseStatus, ResponseHeaders)
+		rt = NewDebuggingRoundTripper(rt, JustURL, RequestHeaders, ResponseStatus, ResponseHeaders)
 	case bool(glog.V(7)):
-		transport = NewDebuggingRoundTripper(transport, JustURL, RequestHeaders, ResponseStatus)
+		rt = NewDebuggingRoundTripper(rt, JustURL, RequestHeaders, ResponseStatus)
 	case bool(glog.V(6)):
-		transport = NewDebuggingRoundTripper(transport, URLTiming)
+		rt = NewDebuggingRoundTripper(rt, URLTiming)
 	}
 
-	transport, err = HTTPWrappersForConfig(config, transport)
+	rt, err = HTTPWrappersForConfig(config, rt)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: use the config context to wrap a transport
 
-	return transport, nil
+	return rt, nil
 }
 
 // HTTPWrappersForConfig wraps a round tripper with any relevant layered behavior from the

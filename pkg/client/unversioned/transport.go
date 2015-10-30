@@ -19,7 +19,6 @@ package unversioned
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"k8s.io/kubernetes/pkg/client/transport"
@@ -108,55 +107,6 @@ func (rt *bearerAuthRoundTripper) WrappedRoundTripper() http.RoundTripper {
 // by the provided Config. Will return nil if no transport level security is requested.
 func TLSConfigFor(config *Config) (*tls.Config, error) {
 	return transport.TLSConfigFor(config.transportConfig())
-}
-
-// tlsConfigKey returns a unique key for tls.Config objects returned from TLSConfigFor
-func tlsConfigKey(config *Config) (string, error) {
-	// Make sure ca/key/cert content is loaded
-	if err := LoadTLSFiles(config); err != nil {
-		return "", err
-	}
-	// Only include the things that actually affect the tls.Config
-	return fmt.Sprintf("%v/%x/%x/%x", config.Insecure, config.CAData, config.CertData, config.KeyData), nil
-}
-
-// LoadTLSFiles copies the data from the CertFile, KeyFile, and CAFile fields into the CertData,
-// KeyData, and CAFile fields, or returns an error. If no error is returned, all three fields are
-// either populated or were empty to start.
-func LoadTLSFiles(config *Config) error {
-	certData, err := dataFromSliceOrFile(config.CertData, config.CertFile)
-	if err != nil {
-		return err
-	}
-	config.CertData = certData
-	keyData, err := dataFromSliceOrFile(config.KeyData, config.KeyFile)
-	if err != nil {
-		return err
-	}
-	config.KeyData = keyData
-	caData, err := dataFromSliceOrFile(config.CAData, config.CAFile)
-	if err != nil {
-		return err
-	}
-	config.CAData = caData
-
-	return nil
-}
-
-// dataFromSliceOrFile returns data from the slice (if non-empty), or from the file,
-// or an error if an error occurred reading the file
-func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
-	if len(data) > 0 {
-		return data, nil
-	}
-	if len(file) > 0 {
-		fileData, err := ioutil.ReadFile(file)
-		if err != nil {
-			return []byte{}, err
-		}
-		return fileData, nil
-	}
-	return nil, nil
 }
 
 // cloneRequest returns a clone of the provided *http.Request.
