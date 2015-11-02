@@ -45,19 +45,15 @@ func MakeTransport(config *KubeletConfig) (http.RoundTripper, error) {
 		return nil, err
 	}
 
-	transport := http.DefaultTransport
+	rt := http.DefaultTransport
 	if config.Dial != nil || tlsConfig != nil {
-		transport = util.SetTransportDefaults(&http.Transport{
+		rt = util.SetTransportDefaults(&http.Transport{
 			Dial:            config.Dial,
 			TLSClientConfig: tlsConfig,
 		})
 	}
 
-	if len(config.BearerToken) > 0 {
-		transport = NewBearerAuthRoundTripper(config.BearerToken, transport)
-	}
-
-	return transport, nil
+	return transport.HTTPWrappersForConfig(config.transportConfig(), rt)
 }
 
 // TODO: this structure is questionable, it should be using client.Config and overriding defaults.

@@ -517,30 +517,7 @@ func TransportFor(config *Config) (http.RoundTripper, error) {
 		}
 	}
 
-	// Call wrap prior to adding debugging wrappers
-	if config.WrapTransport != nil {
-		rt = config.WrapTransport(rt)
-	}
-
-	switch {
-	case bool(glog.V(9)):
-		rt = NewDebuggingRoundTripper(rt, CurlCommand, URLTiming, ResponseHeaders)
-	case bool(glog.V(8)):
-		rt = NewDebuggingRoundTripper(rt, JustURL, RequestHeaders, ResponseStatus, ResponseHeaders)
-	case bool(glog.V(7)):
-		rt = NewDebuggingRoundTripper(rt, JustURL, RequestHeaders, ResponseStatus)
-	case bool(glog.V(6)):
-		rt = NewDebuggingRoundTripper(rt, URLTiming)
-	}
-
-	rt, err = HTTPWrappersForConfig(config, rt)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: use the config context to wrap a transport
-
-	return rt, nil
+	return HTTPWrappersForConfig(config, rt)
 }
 
 // HTTPWrappersForConfig wraps a round tripper with any relevant layered behavior from the
@@ -548,21 +525,7 @@ func TransportFor(config *Config) (http.RoundTripper, error) {
 // the underlying connection (like WebSocket or HTTP2 clients). Pure HTTP clients should use
 // the higher level TransportFor or RESTClientFor methods.
 func HTTPWrappersForConfig(config *Config, rt http.RoundTripper) (http.RoundTripper, error) {
-	// Set authentication wrappers
-	hasBasicAuth := config.Username != "" || config.Password != ""
-	if hasBasicAuth && config.BearerToken != "" {
-		return nil, fmt.Errorf("username/password or bearer token may be set, but not both")
-	}
-	switch {
-	case config.BearerToken != "":
-		rt = NewBearerAuthRoundTripper(config.BearerToken, rt)
-	case hasBasicAuth:
-		rt = NewBasicAuthRoundTripper(config.Username, config.Password, rt)
-	}
-	if len(config.UserAgent) > 0 {
-		rt = NewUserAgentRoundTripper(config.UserAgent, rt)
-	}
-	return rt, nil
+	return transport.HTTPWrappersForConfig(config.transportConfig(), rt)
 }
 
 // DefaultServerURL converts a host, host:port, or URL string to the default base server API path

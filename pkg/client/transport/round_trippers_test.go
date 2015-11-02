@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unversioned
+package transport
 
 import (
 	"encoding/base64"
@@ -36,7 +36,7 @@ func (rt *testRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 func TestBearerAuthRoundTripper(t *testing.T) {
 	rt := &testRoundTripper{}
 	req := &http.Request{}
-	NewBearerAuthRoundTripper("test", rt).RoundTrip(req)
+	newBearerAuthRoundTripper("test", rt).RoundTrip(req)
 	if rt.Request == nil {
 		t.Fatalf("unexpected nil request: %v", rt)
 	}
@@ -51,7 +51,7 @@ func TestBearerAuthRoundTripper(t *testing.T) {
 func TestBasicAuthRoundTripper(t *testing.T) {
 	rt := &testRoundTripper{}
 	req := &http.Request{}
-	NewBasicAuthRoundTripper("user", "pass", rt).RoundTrip(req)
+	newBasicAuthRoundTripper("user", "pass", rt).RoundTrip(req)
 	if rt.Request == nil {
 		t.Fatalf("unexpected nil request: %v", rt)
 	}
@@ -69,7 +69,7 @@ func TestUserAgentRoundTripper(t *testing.T) {
 		Header: make(http.Header),
 	}
 	req.Header.Set("User-Agent", "other")
-	NewUserAgentRoundTripper("test", rt).RoundTrip(req)
+	newUserAgentRoundTripper("test", rt).RoundTrip(req)
 	if rt.Request == nil {
 		t.Fatalf("unexpected nil request: %v", rt)
 	}
@@ -81,7 +81,7 @@ func TestUserAgentRoundTripper(t *testing.T) {
 	}
 
 	req = &http.Request{}
-	NewUserAgentRoundTripper("test", rt).RoundTrip(req)
+	newUserAgentRoundTripper("test", rt).RoundTrip(req)
 	if rt.Request == nil {
 		t.Fatalf("unexpected nil request: %v", rt)
 	}
