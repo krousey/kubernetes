@@ -495,29 +495,7 @@ func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 // or transport level security defined by the provided Config. Will return the
 // default http.DefaultTransport if no special case behavior is needed.
 func TransportFor(config *Config) (http.RoundTripper, error) {
-	hasCA := len(config.CAFile) > 0 || len(config.CAData) > 0
-	hasCert := len(config.CertFile) > 0 || len(config.CertData) > 0
-
-	// Set transport level security
-	if config.Transport != nil && (hasCA || hasCert || config.Insecure) {
-		return nil, fmt.Errorf("using a custom transport with TLS certificate options or the insecure flag is not allowed")
-	}
-
-	var (
-		rt  http.RoundTripper
-		err error
-	)
-
-	if config.Transport != nil {
-		rt = config.Transport
-	} else {
-		rt, err = transport.TLSTransportFor(config.transportConfig())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return HTTPWrappersForConfig(config, rt)
+	return transport.New(config.transportConfig())
 }
 
 // HTTPWrappersForConfig wraps a round tripper with any relevant layered behavior from the

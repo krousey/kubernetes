@@ -73,10 +73,3 @@ func tlsConfigKey(c *Config) (string, error) {
 	// Only include the things that actually affect the tls.Config
 	return fmt.Sprintf("%v/%x/%x/%x", c.TLS.Insecure, c.TLS.CAData, c.TLS.CertData, c.TLS.KeyData), nil
 }
-
-// TLSTransportFor returns a http.RoundTripper for the given config, or an error
-// The same RoundTripper will be returned for configs with identical TLS options
-// If the config has no custom TLS options, http.DefaultTransport is returned
-func TLSTransportFor(c *Config) (http.RoundTripper, error) {
-	return tlsCache.get(c)
-}
