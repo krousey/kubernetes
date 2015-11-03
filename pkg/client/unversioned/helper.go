@@ -34,7 +34,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/latest"
 	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/transport"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/sets"
@@ -94,33 +93,6 @@ type Config struct {
 	Burst int
 }
 
-// transportConfig converts a client config to an appropriate transport config.
-func (c *Config) transportConfig() *transport.Config {
-	return &transport.Config{
-		UserAgent:     c.UserAgent,
-		Transport:     c.Transport,
-		WrapTransport: c.WrapTransport,
-		TLS: transport.TLSConfig{
-			CAFile:   c.CAFile,
-			CAData:   c.CAData,
-			CertFile: c.CertFile,
-			CertData: c.CertData,
-			KeyFile:  c.KeyFile,
-			KeyData:  c.KeyData,
-			Insecure: c.Insecure,
-		},
-		Auth: transport.AuthConfig{
-			Basic: transport.BasicAuthConfig{
-				User:     c.Username,
-				Password: c.Password,
-			},
-			Token: transport.TokenAuthConfig{
-				BearerToken: c.BearerToken,
-			},
-		},
-	}
-}
-
 type KubeletConfig struct {
 	// ToDo: Add support for different kubelet instances exposing different ports
 	Port        uint
@@ -137,29 +109,6 @@ type KubeletConfig struct {
 
 	// Dial is a custom dialer used for the client
 	Dial func(net, addr string) (net.Conn, error)
-}
-
-// transportConfig converts a client config to an appropriate transport config.
-func (c *KubeletConfig) transportConfig() *transport.Config {
-	cfg := &transport.Config{
-		TLS: transport.TLSConfig{
-			CAFile:   c.CAFile,
-			CAData:   c.CAData,
-			CertFile: c.CertFile,
-			CertData: c.CertData,
-			KeyFile:  c.KeyFile,
-			KeyData:  c.KeyData,
-		},
-		Auth: transport.AuthConfig{
-			Token: transport.TokenAuthConfig{
-				BearerToken: c.BearerToken,
-			},
-		},
-	}
-	if c.EnableHttps && !cfg.UsesTLS() {
-		cfg.TLS.Insecure = true
-	}
-	return cfg
 }
 
 // TLSClientConfig contains settings to enable transport layer security
@@ -489,21 +438,6 @@ func UnversionedRESTClientFor(config *Config) (*RESTClient, error) {
 		client.Client = &http.Client{Transport: transport}
 	}
 	return client, nil
-}
-
-// TransportFor returns an http.RoundTripper that will provide the authentication
-// or transport level security defined by the provided Config. Will return the
-// default http.DefaultTransport if no special case behavior is needed.
-func TransportFor(config *Config) (http.RoundTripper, error) {
-	return transport.New(config.transportConfig())
-}
-
-// HTTPWrappersForConfig wraps a round tripper with any relevant layered behavior from the
-// config. Exposed to allow more clients that need HTTP-like behavior but then must hijack
-// the underlying connection (like WebSocket or HTTP2 clients). Pure HTTP clients should use
-// the higher level TransportFor or RESTClientFor methods.
-func HTTPWrappersForConfig(config *Config, rt http.RoundTripper) (http.RoundTripper, error) {
-	return transport.HTTPWrappersForConfig(config.transportConfig(), rt)
 }
 
 // DefaultServerURL converts a host, host:port, or URL string to the default base server API path
